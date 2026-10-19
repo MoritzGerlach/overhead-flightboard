@@ -1,10 +1,11 @@
 /* ==========================================================
    OVERHEAD — LIVE AIRCRAFT FLIGHTBOARD
 
-   Aircraft data is retrieved by GitHub Actions and published
-   as flights.json alongside this application.
+   Direct aircraft tracking using the ADSB.fi API.
 
-   No direct browser requests to external ADS-B APIs.
+   Aircraft data is retrieved directly from the browser.
+   No GitHub Actions data pipeline required if browser
+   access to the API is permitted.
    ========================================================== */
 
 
@@ -17,8 +18,13 @@ const CONFIG = {
   latitude: 48.2082,
   longitude: 16.3738,
   radiusNauticalMiles: 15,
-  refreshMinutes: 0.5,
-  maxDataAgeMinutes: 20,
+
+  // Refresh aircraft data every 30 seconds.
+  refreshSeconds: 30,
+
+  // Maximum acceptable age of an aircraft position.
+  maxPositionAgeSeconds: 90,
+
   demoMode: false
 };
 
@@ -27,7 +33,7 @@ const CONFIG = {
 // DATA SOURCE
 // ----------------------------------------------------------
 
-const DATA_URL = "./flights.json";
+const API_ROOT = "https://opendata.adsb.fi/api/v3";
 
 
 // ----------------------------------------------------------
@@ -102,6 +108,7 @@ const grids = new Map();
 
 let lastValues = {};
 let running = false;
+let refreshTimer = null;
 
 
 // ----------------------------------------------------------
@@ -230,7 +237,8 @@ function suitableAircraft(items) {
       Number.isFinite(a.lon) &&
       a.airground !== "GND" &&
       a.alt_baro !== "ground" &&
-      (a.seen_pos == null || a.seen_pos < 90)
+      (a.seen_pos == null ||
+       a.seen_pos < CONFIG.maxPositionAgeSeconds)
     )
 
     .map(a => ({
@@ -283,8 +291,7 @@ function formatAircraft(a) {
     flight:
       callsign || "---",
 
-    // ADS-B position data does not reliably include
-    // departure and destination airport information.
+    // Route information is not reliably provided.
     route:
       "---  ---",
 
@@ -321,7 +328,7 @@ function status(message, mode) {
 // EMPTY AIRSPACE DISPLAY
 // ----------------------------------------------------------
 
-function showClearSky() {
+function showClearSky(time) {
 
   render({
     airline: "CLEAR SKY",
@@ -333,7 +340,7 @@ function showClearSky() {
   });
 
   status(
-    "NO AIRCRAFT IN RANGE · SCANNING",
+    `NO AIRCRAFT · UPDATED ${time} UTC`,
     "LIVE"
   );
 }
@@ -343,7 +350,7 @@ function showClearSky() {
 // OFFLINE DISPLAY
 // ----------------------------------------------------------
 
-function showOffline(message = "DATA UNAVAILABLE") {
+function showOffline() {
 
   render({
     airline: "DATA OFFLINE",
@@ -354,12 +361,30 @@ function showOffline(message = "DATA UNAVAILABLE") {
     speed: "---"
   });
 
-  status(message, "OFFLINE");
+  status(
+    "DATA UNAVAILABLE · RETRYING",
+    "OFFLINE"
+  );
 }
 
 
 // ----------------------------------------------------------
-// LOAD AIRCRAFT DATA FROM GITHUB PAGES
+// FORMAT UTC TIME
+// ----------------------------------------------------------
+
+function formatUTC(date) {
+
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "UTC"
+  });
+}
+
+
+// ----------------------------------------------------------
+// FETCH LIVE AIRCRAFT DATA
 // ----------------------------------------------------------
 
 async function update() {
@@ -380,8 +405,10 @@ async function update() {
 
     status("UPDATING...", "CONNECTING");
 
-    // Add timestamp to prevent browser caching.
-    const url = `${DATA_URL}?t=${Date.now()}`;
+    const url =
+      `${API_ROOT}/lat/${CONFIG.latitude}` +
+      `/lon/${CONFIG.longitude}` +
+      `/dist/${CONFIG.radiusNauticalMiles}`;
 
     const controller = new AbortController();
 
@@ -405,36 +432,16 @@ async function update() {
     }
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`API ERROR: ${response.status}`);
     }
 
     const payload = await response.json();
 
-    // Validate JSON structure.
     if (!Array.isArray(payload.ac)) {
       throw new Error("INVALID DATA FORMAT");
     }
 
-    // Validate timestamp.
-    if (!payload.fetchedAt) {
-      throw new Error("MISSING TIMESTAMP");
-    }
-
-    const fetchedAt = new Date(payload.fetchedAt).getTime();
-
-    if (!Number.isFinite(fetchedAt)) {
-      throw new Error("INVALID TIMESTAMP");
-    }
-
-    const ageMinutes =
-      (Date.now() - fetchedAt) / 60000;
-
-    if (
-      ageMinutes > CONFIG.maxDataAgeMinutes ||
-      ageMinutes < -5
-    ) {
-      throw new Error("AIRCRAFT DATA OUTDATED");
-    }
+    const receivedAt = new Date();
 
     // Find the nearest aircraft.
     const plane = suitableAircraft(payload.ac);
@@ -444,19 +451,13 @@ async function update() {
       render(formatAircraft(plane));
 
       status(
-        "LIVE · UPDATED " +
-        new Date(fetchedAt).toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "UTC"
-        }) +
-        " UTC",
+        `LIVE · UPDATED ${formatUTC(receivedAt)} UTC`,
         "LIVE"
       );
 
     } else {
 
-      showClearSky();
+      showClearSky(formatUTC(receivedAt));
     }
 
   } catch (error) {
@@ -466,11 +467,7 @@ async function update() {
       error
     );
 
-    showOffline(
-      error.message === "AIRCRAFT DATA OUTDATED"
-        ? "AIRCRAFT DATA OUTDATED"
-        : "DATA UNAVAILABLE · RETRYING"
-    );
+    showOffline();
 
   } finally {
 
@@ -495,6 +492,23 @@ function updateClock() {
 
 
 // ----------------------------------------------------------
+// AUTOMATIC REFRESH
+// ----------------------------------------------------------
+
+function scheduleRefresh() {
+
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+  }
+
+  refreshTimer = setInterval(
+    update,
+    CONFIG.refreshSeconds * 1000
+  );
+}
+
+
+// ----------------------------------------------------------
 // START APPLICATION
 // ----------------------------------------------------------
 
@@ -515,14 +529,13 @@ function start() {
 
   setInterval(updateClock, 30000);
 
+  // Fetch immediately when the page loads.
   update();
 
-  setInterval(
-    update,
-    CONFIG.refreshMinutes * 60 * 1000
-  );
+  // Fetch fresh aircraft data every 30 seconds.
+  scheduleRefresh();
 
-  // Refresh immediately when the browser becomes active.
+  // Refresh when the browser becomes active.
   document.addEventListener(
     "visibilitychange",
     () => {

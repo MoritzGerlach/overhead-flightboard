@@ -17,7 +17,7 @@ const CONFIG = {
   latitude: 48.2082,
   longitude: 16.3738,
   radiusNauticalMiles: 15,
-  refreshMinutes: 5,
+  refreshMinutes: 0.5,
   maxDataAgeMinutes: 20,
   demoMode: false
 };
@@ -421,6 +421,22 @@ async function update() {
     }
 
     const fetchedAt = new Date(payload.fetchedAt).getTime();
+     const lastScan = new Date(fetchedAt);
+
+const nextScan = new Date(
+  fetchedAt + 5 * 60 * 1000
+);
+
+const formatTime = date =>
+  date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC"
+  });
+
+document.getElementById("scanTimes").textContent =
+  `LAST SCAN ${formatTime(lastScan)} UTC  ·  ` +
+  `NEXT SCAN ~${formatTime(nextScan)} UTC`;
 
     if (!Number.isFinite(fetchedAt)) {
       throw new Error("INVALID TIMESTAMP");

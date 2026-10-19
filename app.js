@@ -1,4 +1,16 @@
-/* OVERHEAD — Konfiguration: Ändere hier den Standort. */
+/* ==========================================================
+   OVERHEAD — LIVE AIRCRAFT FLIGHTBOARD
+
+   Aircraft data is retrieved by GitHub Actions and published
+   as flights.json alongside this application.
+
+   No direct browser requests to external ADS-B APIs.
+   ========================================================== */
+
+
+// ----------------------------------------------------------
+// CONFIGURATION
+// ----------------------------------------------------------
 
 const CONFIG = {
   place: "VIENNA",
@@ -6,18 +18,21 @@ const CONFIG = {
   longitude: 16.3738,
   radiusNauticalMiles: 15,
   refreshMinutes: 5,
-
-  // Für einen reinen Design-Test ohne Internet auf true stellen.
-  demoMode: false,
+  maxDataAgeMinutes: 20,
+  demoMode: false
 };
 
-/*
-  Die öffentliche API ist nicht unter unserer Kontrolle.
-  Browserzugriff (CORS), Verfügbarkeit und Abfrageregeln
-  können sich ändern. Kein API-Schlüssel nötig.
-*/
 
-const API_ROOT = "https://api.adsb.lol/v2/point";
+// ----------------------------------------------------------
+// DATA SOURCE
+// ----------------------------------------------------------
+
+const DATA_URL = "./flights.json";
+
+
+// ----------------------------------------------------------
+// DISPLAY FIELDS
+// ----------------------------------------------------------
 
 const FIELDS = [
   { key: "airline", label: "AIRLINE", slots: 14 },
@@ -25,26 +40,36 @@ const FIELDS = [
   { key: "route", label: "ROUTE", slots: 9 },
   { key: "aircraft", label: "AIRCRAFT", slots: 12 },
   { key: "level", label: "FLIGHT LEVEL", slots: 7 },
-  { key: "speed", label: "GROUND SPEED", slots: 9 },
+  { key: "speed", label: "GROUND SPEED", slots: 9 }
 ];
+
+
+// ----------------------------------------------------------
+// DEMO DATA
+// ----------------------------------------------------------
 
 const DEMO = {
   airline: "AUSTRIAN",
-  flight: "OS 123",
+  flight: "AUA123",
   route: "---  ---",
   aircraft: "A320",
   level: "FL350",
   speed: "845 KM/H"
 };
 
-// Beispiele sicher zuordenbarer ICAO-Callsign-Präfixe.
+
+// ----------------------------------------------------------
+// AIRLINE IDENTIFICATION
+// ----------------------------------------------------------
 
 const AIRLINES = {
   AUA: "AUSTRIAN",
   DLH: "LUFTHANSA",
+  EWG: "EUROWINGS",
   EZY: "EASYJET",
   RYR: "RYANAIR",
   WZZ: "WIZZ AIR",
+  WMT: "WIZZ AIR",
   SWR: "SWISS",
   BAW: "BRITISH AIR",
   THY: "TURKISH",
@@ -52,8 +77,24 @@ const AIRLINES = {
   AFR: "AIR FRANCE",
   UAE: "EMIRATES",
   QTR: "QATAR",
-  TOM: "TUI AIRWAYS"
+  TOM: "TUI AIRWAYS",
+  BEL: "BRUSSELS",
+  LOT: "LOT POLISH",
+  SAS: "SAS",
+  FIN: "FINNAIR",
+  TAP: "TAP PORTUGAL",
+  EIN: "AER LINGUS",
+  CFG: "CONDOR",
+  ICE: "ICELANDAIR",
+  DAL: "DELTA",
+  UAL: "UNITED",
+  AAL: "AMERICAN"
 };
+
+
+// ----------------------------------------------------------
+// APPLICATION STATE
+// ----------------------------------------------------------
 
 const byId = id => document.getElementById(id);
 
@@ -63,13 +104,15 @@ let lastValues = {};
 let running = false;
 
 
-// --------------------------------------------------
-// DISPLAY INITIALIZATION
-// --------------------------------------------------
+// ----------------------------------------------------------
+// INITIALIZE DISPLAY
+// ----------------------------------------------------------
 
 function makeBoard() {
 
   const root = byId("rows");
+
+  root.replaceChildren();
 
   for (const field of FIELDS) {
 
@@ -106,13 +149,15 @@ function makeBoard() {
   }
 
   byId("location").textContent =
-    `${CONFIG.place} · ${CONFIG.latitude.toFixed(4)}° N / ${CONFIG.longitude.toFixed(4)}° E`;
+    `${CONFIG.place} · ` +
+    `${CONFIG.latitude.toFixed(4)}° N / ` +
+    `${CONFIG.longitude.toFixed(4)}° E`;
 }
 
 
-// --------------------------------------------------
+// ----------------------------------------------------------
 // SPLIT-FLAP ANIMATION
-// --------------------------------------------------
+// ----------------------------------------------------------
 
 function render(values) {
 
@@ -151,9 +196,9 @@ function render(values) {
 }
 
 
-// --------------------------------------------------
+// ----------------------------------------------------------
 // DISTANCE CALCULATION
-// --------------------------------------------------
+// ----------------------------------------------------------
 
 function haversineKm(lat1, lon1, lat2, lon2) {
 
@@ -172,9 +217,9 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 
-// --------------------------------------------------
-// AIRCRAFT SELECTION
-// --------------------------------------------------
+// ----------------------------------------------------------
+// SELECT NEAREST AIRCRAFT
+// ----------------------------------------------------------
 
 function suitableAircraft(items) {
 
@@ -183,8 +228,6 @@ function suitableAircraft(items) {
     .filter(a =>
       Number.isFinite(a.lat) &&
       Number.isFinite(a.lon) &&
-      a.lat != null &&
-      a.lon != null &&
       a.airground !== "GND" &&
       a.alt_baro !== "ground" &&
       (a.seen_pos == null || a.seen_pos < 90)
@@ -210,9 +253,9 @@ function suitableAircraft(items) {
 }
 
 
-// --------------------------------------------------
-// AIRCRAFT DATA FORMATTING
-// --------------------------------------------------
+// ----------------------------------------------------------
+// FORMAT AIRCRAFT INFORMATION
+// ----------------------------------------------------------
 
 function formatAircraft(a) {
 
@@ -240,7 +283,8 @@ function formatAircraft(a) {
     flight:
       callsign || "---",
 
-    // ADS-B liefert keine zuverlässigen Flughäfen.
+    // ADS-B position data does not reliably include
+    // departure and destination airport information.
     route:
       "---  ---",
 
@@ -262,9 +306,9 @@ function formatAircraft(a) {
 }
 
 
-// --------------------------------------------------
-// STATUS DISPLAY
-// --------------------------------------------------
+// ----------------------------------------------------------
+// UPDATE STATUS INDICATOR
+// ----------------------------------------------------------
 
 function status(message, mode) {
 
@@ -273,9 +317,50 @@ function status(message, mode) {
 }
 
 
-// --------------------------------------------------
-// LIVE AIRCRAFT UPDATE
-// --------------------------------------------------
+// ----------------------------------------------------------
+// EMPTY AIRSPACE DISPLAY
+// ----------------------------------------------------------
+
+function showClearSky() {
+
+  render({
+    airline: "CLEAR SKY",
+    flight: "---",
+    route: "---  ---",
+    aircraft: "---",
+    level: "---",
+    speed: "---"
+  });
+
+  status(
+    "NO AIRCRAFT IN RANGE · SCANNING",
+    "LIVE"
+  );
+}
+
+
+// ----------------------------------------------------------
+// OFFLINE DISPLAY
+// ----------------------------------------------------------
+
+function showOffline(message = "DATA UNAVAILABLE") {
+
+  render({
+    airline: "DATA OFFLINE",
+    flight: "---",
+    route: "---  ---",
+    aircraft: "---",
+    level: "---",
+    speed: "---"
+  });
+
+  status(message, "OFFLINE");
+}
+
+
+// ----------------------------------------------------------
+// LOAD AIRCRAFT DATA FROM GITHUB PAGES
+// ----------------------------------------------------------
 
 async function update() {
 
@@ -293,10 +378,10 @@ async function update() {
       return;
     }
 
-    status("UPDATING…", "CONNECTING");
+    status("UPDATING...", "CONNECTING");
 
-    const url =
-      `${API_ROOT}/${CONFIG.latitude}/${CONFIG.longitude}/${CONFIG.radiusNauticalMiles}`;
+    // Add timestamp to prevent browser caching.
+    const url = `${DATA_URL}?t=${Date.now()}`;
 
     const controller = new AbortController();
 
@@ -320,15 +405,38 @@ async function update() {
     }
 
     if (!response.ok) {
-      throw Error(`HTTP ${response.status}`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
     const payload = await response.json();
 
+    // Validate JSON structure.
     if (!Array.isArray(payload.ac)) {
-      throw Error("INVALID RESPONSE");
+      throw new Error("INVALID DATA FORMAT");
     }
 
+    // Validate timestamp.
+    if (!payload.fetchedAt) {
+      throw new Error("MISSING TIMESTAMP");
+    }
+
+    const fetchedAt = new Date(payload.fetchedAt).getTime();
+
+    if (!Number.isFinite(fetchedAt)) {
+      throw new Error("INVALID TIMESTAMP");
+    }
+
+    const ageMinutes =
+      (Date.now() - fetchedAt) / 60000;
+
+    if (
+      ageMinutes > CONFIG.maxDataAgeMinutes ||
+      ageMinutes < -5
+    ) {
+      throw new Error("AIRCRAFT DATA OUTDATED");
+    }
+
+    // Find the nearest aircraft.
     const plane = suitableAircraft(payload.ac);
 
     if (plane) {
@@ -337,49 +445,31 @@ async function update() {
 
       status(
         "LIVE · UPDATED " +
-        new Date().toLocaleTimeString("de-AT", {
+        new Date(fetchedAt).toLocaleTimeString("en-GB", {
           hour: "2-digit",
-          minute: "2-digit"
-        }),
+          minute: "2-digit",
+          timeZone: "UTC"
+        }) +
+        " UTC",
         "LIVE"
       );
 
     } else {
 
-      render({
-        airline: "CLEAR SKY",
-        flight: "---",
-        route: "---  ---",
-        aircraft: "---",
-        level: "---",
-        speed: "---"
-      });
-
-      status(
-        "NO AIRCRAFT IN RANGE · SCANNING",
-        "LIVE"
-      );
+      showClearSky();
     }
 
   } catch (error) {
 
     console.warn(
-      "Flugdaten nicht verfügbar:",
+      "OVERHEAD: Aircraft data unavailable:",
       error
     );
 
-    render({
-      airline: "DATA OFFLINE",
-      flight: "---",
-      route: "---  ---",
-      aircraft: "---",
-      level: "---",
-      speed: "---"
-    });
-
-    status(
-      "API UNAVAILABLE · CHECK CORS",
-      "OFFLINE"
+    showOffline(
+      error.message === "AIRCRAFT DATA OUTDATED"
+        ? "AIRCRAFT DATA OUTDATED"
+        : "DATA UNAVAILABLE · RETRYING"
     );
 
   } finally {
@@ -389,9 +479,24 @@ async function update() {
 }
 
 
-// --------------------------------------------------
-// APPLICATION START
-// --------------------------------------------------
+// ----------------------------------------------------------
+// UTC CLOCK
+// ----------------------------------------------------------
+
+function updateClock() {
+
+  byId("clock").textContent =
+    new Date().toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC"
+    }) + " UTC";
+}
+
+
+// ----------------------------------------------------------
+// START APPLICATION
+// ----------------------------------------------------------
 
 function start() {
 
@@ -406,19 +511,9 @@ function start() {
     speed: "---"
   });
 
-  const tick = () => {
+  updateClock();
 
-    byId("clock").textContent =
-      new Date().toLocaleTimeString("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "UTC"
-      }) + " UTC";
-  };
-
-  tick();
-
-  setInterval(tick, 30000);
+  setInterval(updateClock, 30000);
 
   update();
 
@@ -427,6 +522,7 @@ function start() {
     CONFIG.refreshMinutes * 60 * 1000
   );
 
+  // Refresh immediately when the browser becomes active.
   document.addEventListener(
     "visibilitychange",
     () => {

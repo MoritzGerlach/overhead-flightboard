@@ -421,22 +421,6 @@ async function update() {
     }
 
     const fetchedAt = new Date(payload.fetchedAt).getTime();
-     const lastScan = new Date(fetchedAt);
-
-const nextScan = new Date(
-  fetchedAt + 5 * 60 * 1000
-);
-
-const formatTime = date =>
-  date.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC"
-  });
-
-document.getElementById("scanTimes").textContent =
-  `LAST SCAN ${formatTime(lastScan)} UTC  ·  ` +
-  `NEXT SCAN ~${formatTime(nextScan)} UTC`;
 
     if (!Number.isFinite(fetchedAt)) {
       throw new Error("INVALID TIMESTAMP");

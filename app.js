@@ -17,7 +17,7 @@ const CONFIG = {
   können sich ändern. Kein API-Schlüssel nötig.
 */
 
-const API_ROOT = "https://api.airplanes.live/v2/point";
+const API_ROOT = "https://api.adsb.lol/v2/point";
 
 const FIELDS = [
   { key: "airline", label: "AIRLINE", slots: 14 },

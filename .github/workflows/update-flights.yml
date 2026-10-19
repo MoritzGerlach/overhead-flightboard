@@ -43,7 +43,7 @@ jobs:
             const radius = 15;
 
             const url =
-              `https://api.adsb.lol/v2/point/${latitude}/${longitude}/${radius}`;
+              `https://opendata.adsb.fi/api/v3/lat/${latitude}/lon/${longitude}/dist/${radius}`;
 
             const response = await fetch(url, {
               signal: AbortSignal.timeout(20000)

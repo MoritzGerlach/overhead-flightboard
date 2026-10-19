@@ -1,0 +1,107 @@
+name: Update Aircraft Data
+
+on:
+  schedule:
+    - cron: "2/5 * * * *"
+
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flightboard-pages
+  cancel-in-progress: false
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create website directory
+        run: |
+          mkdir -p _site
+          cp index.html app.js _site/
+
+      - name: Fetch aircraft data
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          async function main() {
+            const latitude = 48.2082;
+            const longitude = 16.3738;
+            const radius = 15;
+
+            const url =
+              `https://api.adsb.lol/v2/point/${latitude}/${longitude}/${radius}`;
+
+            const response = await fetch(url, {
+              signal: AbortSignal.timeout(20000)
+            });
+
+            if (!response.ok) {
+              throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!Array.isArray(data.ac)) {
+              throw new Error("Invalid aircraft data");
+            }
+
+            const result = {
+              fetchedAt: new Date().toISOString(),
+              ac: data.ac
+            };
+
+            fs.writeFileSync(
+              "_site/flights.json",
+              JSON.stringify(result)
+            );
+
+            console.log(
+              `Successfully fetched ${data.ac.length} aircraft`
+            );
+          }
+
+          main().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

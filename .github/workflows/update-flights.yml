@@ -2,6 +2,7 @@ name: Update Aircraft Data
 
 on:
   schedule:
+    # Five minutes is GitHub's minimum; scheduled starts can still be delayed.
     - cron: "2/5 * * * *"
 
   workflow_dispatch:
@@ -12,6 +13,8 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: flightboard-pages
@@ -19,13 +22,21 @@ concurrency:
 
 jobs:
 
-  build:
+  update-and-deploy:
+    # A single runner fetches the data and publishes Pages without a second job startup.
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Create website directory
         run: |
@@ -87,21 +98,9 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
+          retention-days: 1
 
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+

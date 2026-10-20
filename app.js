@@ -1,44 +1,34 @@
-/* ==========================================================
-   OVERHEAD — LIVE AIRCRAFT FLIGHTBOARD
+/*
+ * OVERHEAD — Live Aircraft Flightboard
+ *
+ * Aircraft data: ADSB.fi
+ * Flight routes: ADSBdb
+ * Data updates: GitHub Actions
+ * Display refresh: Every 30 seconds
+ */
 
-   Aircraft snapshots from ADSB.fi, published by GitHub Actions.
-   ========================================================== */
 
-
-// ----------------------------------------------------------
+// --------------------------------------------------
 // CONFIGURATION
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 const CONFIG = {
   place: "VIENNA",
   latitude: 48.2082,
   longitude: 16.3738,
   radiusNauticalMiles: 15,
-
-  // Check the published snapshot every 30 seconds; Actions fetches it every five minutes.
   refreshSeconds: 30,
-
-  // Maximum acceptable age of an aircraft position.
   maxPositionAgeSeconds: 90,
-
-  // Allow scheduler and deployment delays, but stop showing snapshots older than 20 minutes.
   maxSnapshotAgeSeconds: 1200,
-
   demoMode: false
 };
 
-
-// ----------------------------------------------------------
-// DATA SOURCE
-// ----------------------------------------------------------
-
-// Same-origin JSON avoids the ADSB.fi browser CORS restriction.
 const DATA_URL = "./flights.json";
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // DISPLAY FIELDS
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 const FIELDS = [
   { key: "airline", label: "AIRLINE", slots: 14 },
@@ -49,24 +39,19 @@ const FIELDS = [
   { key: "speed", label: "GROUND SPEED", slots: 9 }
 ];
 
-
-// ----------------------------------------------------------
-// DEMO DATA
-// ----------------------------------------------------------
-
 const DEMO = {
   airline: "AUSTRIAN",
   flight: "AUA123",
-  route: "---  ---",
+  route: "FRA-VIE",
   aircraft: "A320",
   level: "FL350",
   speed: "845 KM/H"
 };
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // AIRLINE IDENTIFICATION
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 const AIRLINES = {
   AUA: "AUSTRIAN",
@@ -98,9 +83,9 @@ const AIRLINES = {
 };
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // APPLICATION STATE
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 const byId = id => document.getElementById(id);
 
@@ -108,21 +93,17 @@ const grids = new Map();
 
 let lastValues = {};
 let running = false;
-let refreshTimer = null;
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // INITIALIZE DISPLAY
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 function makeBoard() {
-
   const root = byId("rows");
-
   root.replaceChildren();
 
   for (const field of FIELDS) {
-
     const row = document.createElement("div");
     row.className = "dataRow";
 
@@ -139,9 +120,7 @@ function makeBoard() {
     const cells = [];
 
     for (let i = 0; i < field.slots; i++) {
-
       const cell = document.createElement("span");
-
       cell.className = "cell";
       cell.textContent = " ";
 
@@ -162,14 +141,12 @@ function makeBoard() {
 }
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // SPLIT-FLAP ANIMATION
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 function render(values) {
-
   for (const field of FIELDS) {
-
     const text = String(values[field.key] ?? "---")
       .toUpperCase()
       .replace(/[^A-Z0-9 .+\-/]/g, " ")
@@ -180,21 +157,16 @@ function render(values) {
       lastValues[field.key] ?? " ".repeat(field.slots);
 
     grids.get(field.key).forEach((cell, i) => {
-
       if (text[i] === previous[i]) return;
 
       const delay = Math.min(i * 25, 260);
 
       setTimeout(() => {
-
         cell.textContent = text[i];
 
         cell.classList.remove("changed");
-
         void cell.offsetWidth;
-
         cell.classList.add("changed");
-
       }, delay);
     });
 
@@ -203,14 +175,12 @@ function render(values) {
 }
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // DISTANCE CALCULATION
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 function haversineKm(lat1, lon1, lat2, lon2) {
-
   const rad = Math.PI / 180;
-
   const dlat = (lat2 - lat1) * rad;
   const dlon = (lon2 - lon1) * rad;
 
@@ -224,326 +194,15 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 
-// ----------------------------------------------------------
+// --------------------------------------------------
 // SELECT NEAREST AIRCRAFT
-// ----------------------------------------------------------
+// --------------------------------------------------
 
 function suitableAircraft(items) {
-
   return items
-
     .filter(a =>
       Number.isFinite(a.lat) &&
       Number.isFinite(a.lon) &&
       a.airground !== "GND" &&
       a.alt_baro !== "ground" &&
       (a.seen_pos == null ||
-       a.seen_pos < CONFIG.maxPositionAgeSeconds)
-    )
-
-    .map(a => ({
-      aircraft: a,
-      distance: haversineKm(
-        CONFIG.latitude,
-        CONFIG.longitude,
-        a.lat,
-        a.lon
-      )
-    }))
-
-    .filter(a =>
-      a.distance <= CONFIG.radiusNauticalMiles * 1.852
-    )
-
-    .sort((a, b) =>
-      a.distance - b.distance
-    )[0]?.aircraft;
-}
-
-
-// ----------------------------------------------------------
-// FORMAT AIRCRAFT INFORMATION
-// ----------------------------------------------------------
-
-function formatAircraft(a) {
-
-  const callsign = String(a.flight ?? "")
-    .trim()
-    .toUpperCase();
-
-  const prefix =
-    (callsign.match(/^[A-Z]{3}/) || [])[0];
-
-  const altitude =
-    typeof a.alt_baro === "number"
-      ? a.alt_baro
-      : (
-          typeof a.alt_geom === "number"
-            ? a.alt_geom
-            : null
-        );
-
-  return {
-
-    airline:
-      AIRLINES[prefix] ?? "UNKNOWN",
-
-    flight:
-      callsign || "---",
-
-    // Route information is not reliably provided.
-    route:
-      "---  ---",
-
-    aircraft:
-      String(a.t ?? "---").toUpperCase(),
-
-    level:
-      altitude == null
-        ? "---"
-        : `FL${String(
-            Math.round(altitude / 100)
-          ).padStart(3, "0")}`,
-
-    speed:
-      typeof a.gs === "number"
-        ? `${Math.round(a.gs * 1.852)} KM/H`
-        : "---"
-  };
-}
-
-
-// ----------------------------------------------------------
-// UPDATE STATUS INDICATOR
-// ----------------------------------------------------------
-
-function status(message, mode) {
-
-  byId("status").textContent = message;
-  byId("mode").textContent = mode;
-}
-
-
-// ----------------------------------------------------------
-// EMPTY AIRSPACE DISPLAY
-// ----------------------------------------------------------
-
-function showClearSky(time) {
-
-  render({
-    airline: "CLEAR SKY",
-    flight: "---",
-    route: "---  ---",
-    aircraft: "---",
-    level: "---",
-    speed: "---"
-  });
-
-  status(
-    `NO AIRCRAFT · UPDATED ${time} UTC`,
-    "SNAPSHOT"
-  );
-}
-
-
-// ----------------------------------------------------------
-// OFFLINE DISPLAY
-// ----------------------------------------------------------
-
-function showOffline() {
-
-  render({
-    airline: "DATA OFFLINE",
-    flight: "---",
-    route: "---  ---",
-    aircraft: "---",
-    level: "---",
-    speed: "---"
-  });
-
-  status(
-    "DATA UNAVAILABLE · RETRYING",
-    "OFFLINE"
-  );
-}
-
-
-// ----------------------------------------------------------
-// FORMAT UTC TIME
-// ----------------------------------------------------------
-
-function formatUTC(date) {
-
-  return date.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZone: "UTC"
-  });
-}
-
-
-// ----------------------------------------------------------
-// FETCH LIVE AIRCRAFT DATA
-// ----------------------------------------------------------
-
-async function update() {
-
-  if (running || document.hidden) return;
-
-  running = true;
-
-  try {
-
-    if (CONFIG.demoMode) {
-
-      render(DEMO);
-      status("EXAMPLE DATA", "DEMO");
-
-      return;
-    }
-
-    status("UPDATING...", "CONNECTING");
-
-    const controller = new AbortController();
-
-    const timeout = setTimeout(
-      () => controller.abort(),
-      15000
-    );
-
-    let response;
-
-    try {
-
-      response = await fetch(DATA_URL, {
-        cache: "no-store",
-        signal: controller.signal
-      });
-
-    } finally {
-
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      throw new Error(`DATA ERROR: ${response.status}`);
-    }
-
-    const payload = await response.json();
-
-    if (!Array.isArray(payload.ac)) {
-      throw new Error("INVALID DATA FORMAT");
-    }
-
-    const fetchedAt = new Date(payload.fetchedAt);
-    const snapshotAge = (Date.now() - fetchedAt.getTime()) / 1000;
-
-    if (!Number.isFinite(snapshotAge) || snapshotAge < -60 ||
-        snapshotAge > CONFIG.maxSnapshotAgeSeconds) {
-      throw new Error("STALE OR INVALID SNAPSHOT");
-    }
-
-    // Find the nearest aircraft.
-    const plane = suitableAircraft(payload.ac);
-
-    if (plane) {
-
-      render(formatAircraft(plane));
-
-      status(
-        `SNAPSHOT · UPDATED ${formatUTC(fetchedAt)} UTC`,
-        "SNAPSHOT"
-      );
-
-    } else {
-
-      showClearSky(formatUTC(fetchedAt));
-    }
-
-  } catch (error) {
-
-    console.warn(
-      "OVERHEAD: Aircraft data unavailable:",
-      error
-    );
-
-    showOffline();
-
-  } finally {
-
-    running = false;
-  }
-}
-
-
-// ----------------------------------------------------------
-// UTC CLOCK
-// ----------------------------------------------------------
-
-function updateClock() {
-
-  byId("clock").textContent =
-    new Date().toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "UTC"
-    }) + " UTC";
-}
-
-
-// ----------------------------------------------------------
-// AUTOMATIC REFRESH
-// ----------------------------------------------------------
-
-function scheduleRefresh() {
-
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-  }
-
-  refreshTimer = setInterval(
-    update,
-    CONFIG.refreshSeconds * 1000
-  );
-}
-
-
-// ----------------------------------------------------------
-// START APPLICATION
-// ----------------------------------------------------------
-
-function start() {
-
-  makeBoard();
-
-  render({
-    airline: "CONNECTING",
-    flight: "---",
-    route: "---  ---",
-    aircraft: "---",
-    level: "---",
-    speed: "---"
-  });
-
-  updateClock();
-
-  setInterval(updateClock, 30000);
-
-  // Fetch immediately when the page loads.
-  update();
-
-  // Check for a newly published aircraft snapshot every 30 seconds.
-  scheduleRefresh();
-
-  // Refresh when the browser becomes active.
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (!document.hidden) update();
-    }
-  );
-}
-
-start();
-

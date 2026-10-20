@@ -143,4 +143,68 @@ jobs:
               .filter(a =>
                 Number.isFinite(a.lat) &&
                 Number.isFinite(a.lon) &&
-                a.airground !== "GND"
+                a.airground !== "GND" &&
+                a.alt_baro !== "ground" &&
+                (a.seen_pos == null || a.seen_pos < 90)
+              )
+              .map(a => ({
+                aircraft: a,
+                distance: distanceKm(
+                  CONFIG.latitude,
+                  CONFIG.longitude,
+                  a.lat,
+                  a.lon
+                )
+              }))
+              .filter(a =>
+                a.distance <= CONFIG.radius * 1.852
+              )
+              .sort((a, b) => a.distance - b.distance)[0]
+              ?.aircraft;
+
+            if (nearest) {
+              const callsign = String(nearest.flight ?? "")
+                .trim()
+                .toUpperCase();
+
+              nearest.route = await getRoute(callsign);
+
+              console.log(
+                `Selected: ${callsign || "UNKNOWN"}`
+              );
+              console.log(
+                `Route: ${nearest.route || "UNKNOWN"}`
+              );
+            }
+
+            fs.writeFileSync(
+              "_site/flights.json",
+              JSON.stringify({
+                fetchedAt: new Date().toISOString(),
+                ac: aircraft
+              })
+            );
+
+            console.log(
+              `Successfully processed ${aircraft.length} aircraft`
+            );
+          }
+
+          main().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+          retention-days: 1
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

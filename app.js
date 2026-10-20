@@ -206,3 +206,256 @@ function suitableAircraft(items) {
       a.airground !== "GND" &&
       a.alt_baro !== "ground" &&
       (a.seen_pos == null ||
+       a.seen_pos < CONFIG.maxPositionAgeSeconds)
+    )
+    .map(a => ({
+      aircraft: a,
+      distance: haversineKm(
+        CONFIG.latitude,
+        CONFIG.longitude,
+        a.lat,
+        a.lon
+      )
+    }))
+    .filter(a =>
+      a.distance <= CONFIG.radiusNauticalMiles * 1.852
+    )
+    .sort((a, b) =>
+      a.distance - b.distance
+    )[0]?.aircraft;
+}
+
+
+// --------------------------------------------------
+// FORMAT AIRCRAFT INFORMATION
+// --------------------------------------------------
+
+function formatAircraft(a) {
+  const callsign = String(a.flight ?? "")
+    .trim()
+    .toUpperCase();
+
+  const prefix =
+    (callsign.match(/^[A-Z]{3}/) || [])[0];
+
+  const altitude =
+    typeof a.alt_baro === "number"
+      ? a.alt_baro
+      : (
+          typeof a.alt_geom === "number"
+            ? a.alt_geom
+            : null
+        );
+
+  return {
+    airline:
+      AIRLINES[prefix] ?? "UNKNOWN",
+
+    flight:
+      callsign || "---",
+
+    // Route from ADSBdb, if available.
+    route:
+      typeof a.route === "string" &&
+      /^[A-Z]{3}-[A-Z]{3}$/.test(a.route)
+        ? a.route
+        : "---  ---",
+
+    aircraft:
+      String(a.t ?? "---").toUpperCase(),
+
+    level:
+      altitude == null
+        ? "---"
+        : `FL${String(
+            Math.round(altitude / 100)
+          ).padStart(3, "0")}`,
+
+    speed:
+      typeof a.gs === "number"
+        ? `${Math.round(a.gs * 1.852)} KM/H`
+        : "---"
+  };
+}
+
+
+// --------------------------------------------------
+// STATUS
+// --------------------------------------------------
+
+function status(message, mode) {
+  byId("status").textContent = message;
+  byId("mode").textContent = mode;
+}
+
+function formatUTC(date) {
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "UTC"
+  });
+}
+
+
+// --------------------------------------------------
+// EMPTY AIRSPACE
+// --------------------------------------------------
+
+function showClearSky(time) {
+  render({
+    airline: "CLEAR SKY",
+    flight: "---",
+    route: "---  ---",
+    aircraft: "---",
+    level: "---",
+    speed: "---"
+  });
+
+  status(
+    `NO AIRCRAFT · UPDATED ${time} UTC`,
+    "SNAPSHOT"
+  );
+}
+
+
+// --------------------------------------------------
+// OFFLINE
+// --------------------------------------------------
+
+function showOffline() {
+  render({
+    airline: "DATA OFFLINE",
+    flight: "---",
+    route: "---  ---",
+    aircraft: "---",
+    level: "---",
+    speed: "---"
+  });
+
+  status("DATA UNAVAILABLE · RETRYING", "OFFLINE");
+}
+
+
+// --------------------------------------------------
+// LOAD DATA FROM GITHUB PAGES
+// --------------------------------------------------
+
+async function update() {
+  if (running || document.hidden) return;
+
+  running = true;
+
+  try {
+    if (CONFIG.demoMode) {
+      render(DEMO);
+      status("EXAMPLE DATA", "DEMO");
+      return;
+    }
+
+    status("UPDATING...", "CONNECTING");
+
+    const response = await fetch(
+      `${DATA_URL}?t=${Date.now()}`,
+      {
+        cache: "no-store",
+        signal: AbortSignal.timeout(15000)
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`DATA ERROR: ${response.status}`);
+    }
+
+    const payload = await response.json();
+
+    if (!Array.isArray(payload.ac)) {
+      throw new Error("INVALID DATA FORMAT");
+    }
+
+    const fetchedAt = new Date(payload.fetchedAt);
+
+    const snapshotAge =
+      (Date.now() - fetchedAt.getTime()) / 1000;
+
+    if (
+      !Number.isFinite(snapshotAge) ||
+      snapshotAge < -60 ||
+      snapshotAge > CONFIG.maxSnapshotAgeSeconds
+    ) {
+      throw new Error("STALE OR INVALID SNAPSHOT");
+    }
+
+    const plane = suitableAircraft(payload.ac);
+
+    if (plane) {
+      render(formatAircraft(plane));
+
+      status(
+        `SNAPSHOT · UPDATED ${formatUTC(fetchedAt)} UTC`,
+        "SNAPSHOT"
+      );
+
+    } else {
+      showClearSky(formatUTC(fetchedAt));
+    }
+
+  } catch (error) {
+    console.warn("OVERHEAD:", error);
+    showOffline();
+
+  } finally {
+    running = false;
+  }
+}
+
+
+// --------------------------------------------------
+// UTC CLOCK
+// --------------------------------------------------
+
+function updateClock() {
+  byId("clock").textContent =
+    new Date().toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC"
+    }) + " UTC";
+}
+
+
+// --------------------------------------------------
+// START APPLICATION
+// --------------------------------------------------
+
+function start() {
+  makeBoard();
+
+  render({
+    airline: "CONNECTING",
+    flight: "---",
+    route: "---  ---",
+    aircraft: "---",
+    level: "---",
+    speed: "---"
+  });
+
+  updateClock();
+  setInterval(updateClock, 30000);
+
+  update();
+
+  setInterval(
+    update,
+    CONFIG.refreshSeconds * 1000
+  );
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (!document.hidden) update();
+    }
+  );
+}
+
+start();

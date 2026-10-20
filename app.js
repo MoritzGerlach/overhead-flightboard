@@ -1,11 +1,7 @@
 /* ==========================================================
    OVERHEAD — LIVE AIRCRAFT FLIGHTBOARD
 
-   Direct aircraft tracking using the ADSB.fi API.
-
-   Aircraft data is retrieved directly from the browser.
-   No GitHub Actions data pipeline required if browser
-   access to the API is permitted.
+   Aircraft snapshots from ADSB.fi, published by GitHub Actions.
    ========================================================== */
 
 
@@ -19,11 +15,14 @@ const CONFIG = {
   longitude: 16.3738,
   radiusNauticalMiles: 15,
 
-  // Refresh aircraft data every 30 seconds.
+  // Check the published snapshot every 30 seconds; Actions fetches it every five minutes.
   refreshSeconds: 30,
 
   // Maximum acceptable age of an aircraft position.
   maxPositionAgeSeconds: 90,
+
+  // Allow scheduler and deployment delays, but stop showing snapshots older than 20 minutes.
+  maxSnapshotAgeSeconds: 1200,
 
   demoMode: false
 };
@@ -33,7 +32,8 @@ const CONFIG = {
 // DATA SOURCE
 // ----------------------------------------------------------
 
-const API_ROOT = "https://opendata.adsb.fi/api/v3";
+// Same-origin JSON avoids the ADSB.fi browser CORS restriction.
+const DATA_URL = "./flights.json";
 
 
 // ----------------------------------------------------------
@@ -341,7 +341,7 @@ function showClearSky(time) {
 
   status(
     `NO AIRCRAFT · UPDATED ${time} UTC`,
-    "LIVE"
+    "SNAPSHOT"
   );
 }
 
@@ -405,11 +405,6 @@ async function update() {
 
     status("UPDATING...", "CONNECTING");
 
-    const url =
-      `${API_ROOT}/lat/${CONFIG.latitude}` +
-      `/lon/${CONFIG.longitude}` +
-      `/dist/${CONFIG.radiusNauticalMiles}`;
-
     const controller = new AbortController();
 
     const timeout = setTimeout(
@@ -421,7 +416,7 @@ async function update() {
 
     try {
 
-      response = await fetch(url, {
+      response = await fetch(DATA_URL, {
         cache: "no-store",
         signal: controller.signal
       });
@@ -432,7 +427,7 @@ async function update() {
     }
 
     if (!response.ok) {
-      throw new Error(`API ERROR: ${response.status}`);
+      throw new Error(`DATA ERROR: ${response.status}`);
     }
 
     const payload = await response.json();
@@ -441,7 +436,13 @@ async function update() {
       throw new Error("INVALID DATA FORMAT");
     }
 
-    const receivedAt = new Date();
+    const fetchedAt = new Date(payload.fetchedAt);
+    const snapshotAge = (Date.now() - fetchedAt.getTime()) / 1000;
+
+    if (!Number.isFinite(snapshotAge) || snapshotAge < -60 ||
+        snapshotAge > CONFIG.maxSnapshotAgeSeconds) {
+      throw new Error("STALE OR INVALID SNAPSHOT");
+    }
 
     // Find the nearest aircraft.
     const plane = suitableAircraft(payload.ac);
@@ -451,13 +452,13 @@ async function update() {
       render(formatAircraft(plane));
 
       status(
-        `LIVE · UPDATED ${formatUTC(receivedAt)} UTC`,
-        "LIVE"
+        `SNAPSHOT · UPDATED ${formatUTC(fetchedAt)} UTC`,
+        "SNAPSHOT"
       );
 
     } else {
 
-      showClearSky(formatUTC(receivedAt));
+      showClearSky(formatUTC(fetchedAt));
     }
 
   } catch (error) {
@@ -532,7 +533,7 @@ function start() {
   // Fetch immediately when the page loads.
   update();
 
-  // Fetch fresh aircraft data every 30 seconds.
+  // Check for a newly published aircraft snapshot every 30 seconds.
   scheduleRefresh();
 
   // Refresh when the browser becomes active.
@@ -545,3 +546,4 @@ function start() {
 }
 
 start();
+

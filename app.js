@@ -3,7 +3,7 @@
  *
  * Aircraft data: ADSB.fi
  * Flight routes: ADSBdb
- * Data updates: GitHub Actions
+ * Data source: Cloudflare Worker
  * Display refresh: Every 30 seconds
  */
 
@@ -23,7 +23,7 @@ const CONFIG = {
   demoMode: false
 };
 
-const DATA_URL = "./flights.json";
+const DATA_URL = "https://overhead-api.4rkrs5zggb.workers.dev/";
 
 
 // --------------------------------------------------
@@ -338,7 +338,7 @@ function showOffline() {
 
 
 // --------------------------------------------------
-// LOAD DATA FROM GITHUB PAGES
+// LOAD DATA FROM CLOUDFLARE WORKER
 // --------------------------------------------------
 
 async function update() {
@@ -369,14 +369,18 @@ async function update() {
 
     const payload = await response.json();
 
-    if (!Array.isArray(payload.ac)) {
+    if (payload.success === false) {
+      throw new Error("API REPORTED FAILURE");
+    }
+
+    if (!Array.isArray(payload.aircraft)) {
       throw new Error("INVALID DATA FORMAT");
     }
 
-    const fetchedAt = new Date(payload.fetchedAt);
+    const checkedAt = new Date(payload.checkedAt);
 
     const snapshotAge =
-      (Date.now() - fetchedAt.getTime()) / 1000;
+      (Date.now() - checkedAt.getTime()) / 1000;
 
     if (
       !Number.isFinite(snapshotAge) ||
@@ -386,18 +390,18 @@ async function update() {
       throw new Error("STALE OR INVALID SNAPSHOT");
     }
 
-    const plane = suitableAircraft(payload.ac);
+    const plane = suitableAircraft(payload.aircraft);
 
     if (plane) {
       render(formatAircraft(plane));
 
       status(
-        `SNAPSHOT · UPDATED ${formatUTC(fetchedAt)} UTC`,
+        `SNAPSHOT · UPDATED ${formatUTC(checkedAt)} UTC`,
         "SNAPSHOT"
       );
 
     } else {
-      showClearSky(formatUTC(fetchedAt));
+      showClearSky(formatUTC(checkedAt));
     }
 
   } catch (error) {

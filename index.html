@@ -1,24 +1,13 @@
 <!doctype html>
-<html lang="en">
-
+<html lang="de">
 <head>
   <meta charset="utf-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  >
-
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101312">
-
   <title>OVERHEAD · Vienna</title>
 
   <style>
-
-    /* ------------------------------------------
-       GENERAL DESIGN
-    ------------------------------------------ */
-
     :root {
       font-family: Arial, Helvetica, sans-serif;
       color: #e9e7dd;
@@ -26,132 +15,75 @@
       font-synthesis: none;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
-    html,
-    body {
+    html, body {
       margin: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
     }
 
-    body {
-      min-height: 100svh;
-    }
-
-
-    /* ------------------------------------------
-       MAIN VIEWPORT
-    ------------------------------------------ */
-
     .viewport {
       height: 100svh;
       width: 100%;
-      overflow: hidden;
-
       display: flex;
       align-items: center;
       justify-content: center;
-
       padding: clamp(12px, 3vw, 36px);
     }
-
-
-    /* ------------------------------------------
-       FLIGHTBOARD CONTAINER
-    ------------------------------------------ */
 
     .board {
       width: min(1120px, 100%);
       max-height: 100%;
-
       background: #1b1f1e;
       border: 1px solid #353b37;
-
-      box-shadow:
-        0 22px 80px #0009,
-        0 1px 0 #525a5240 inset;
-
+      box-shadow: 0 22px 80px #0009;
       padding: clamp(18px, 3.3vw, 42px);
-
       display: flex;
       flex-direction: column;
-
       gap: clamp(14px, 2.3vh, 25px);
     }
-
-
-    /* ------------------------------------------
-       HEADER
-    ------------------------------------------ */
 
     .mast {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-
       gap: 12px;
-
       border-bottom: 1px solid #41463f;
-
-      padding-bottom: clamp(12px, 2vh, 22px);
+      padding-bottom: 18px;
     }
 
     .eyebrow {
-      font-size: clamp(9px, 1.1vw, 12px);
-      letter-spacing: 0.3em;
-
+      font-size: 11px;
+      letter-spacing: .3em;
       color: #b4a987;
-
       margin-bottom: 8px;
     }
 
     .mast h1 {
       margin: 0;
-
       font-size: clamp(21px, 4vw, 42px);
       font-weight: 600;
-      letter-spacing: 0.04em;
+      letter-spacing: .04em;
     }
 
     .mastRight {
       text-align: right;
-
       color: #aaa99c;
-
-      font-size: clamp(9px, 1vw, 12px);
-      letter-spacing: 0.15em;
-
+      font-size: 11px;
+      letter-spacing: .15em;
       white-space: nowrap;
     }
 
-
-    /* ------------------------------------------
-       CONNECTION INDICATOR
-    ------------------------------------------ */
-
     .signal {
       display: inline-block;
-
       width: 7px;
       height: 7px;
-
       border-radius: 50%;
-
       background: #be8f48;
-
       margin-right: 9px;
-
-      box-shadow: 0 0 12px #be8f4860;
     }
-
-
-    /* ------------------------------------------
-       FLIGHT INFORMATION ROWS
-    ------------------------------------------ */
 
     .rows {
       display: grid;
@@ -160,62 +92,35 @@
 
     .dataRow {
       display: grid;
-
-      grid-template-columns:
-        minmax(95px, 21%)
-        minmax(0, 1fr);
-
+      grid-template-columns: minmax(95px, 21%) minmax(0, 1fr);
       gap: clamp(10px, 2vw, 28px);
-
       align-items: center;
-
       min-width: 0;
     }
 
     .name {
-      font-size: clamp(10px, 1.15vw, 13px);
-
-      letter-spacing: 0.17em;
-
+      font-size: 11px;
+      letter-spacing: .17em;
       color: #a9aaa0;
-
       font-weight: 600;
     }
 
-
-    /* ------------------------------------------
-       SPLIT-FLAP CHARACTER GRID
-    ------------------------------------------ */
-
     .cells {
       min-width: 0;
-
       display: grid;
-
       grid-template-columns:
         repeat(var(--slots), minmax(0, 1fr));
-
-      gap: clamp(2px, 0.42vw, 6px);
+      gap: clamp(2px, .42vw, 6px);
     }
-
-
-    /* ------------------------------------------
-       INDIVIDUAL SPLIT-FLAP CHARACTER
-    ------------------------------------------ */
 
     .cell {
       position: relative;
-
       min-width: 0;
-
       height: clamp(41px, 7.8vh, 75px);
-
       display: flex;
       align-items: center;
       justify-content: center;
-
       overflow: hidden;
-
       border-radius: 3px;
 
       background: linear-gradient(
@@ -225,109 +130,87 @@
         #252a27 100%
       );
 
-      box-shadow:
-        0 1px 3px #000a inset,
-        0 1px 0 #575e5670;
-
       border: 1px solid #3f4840;
-
       color: #eceade;
-
-      font-family:
-        "Arial Narrow",
-        Arial,
-        Helvetica,
-        sans-serif;
-
-      font-stretch: condensed;
-
+      font-family: 'Arial Narrow', Arial, sans-serif;
       font-size: clamp(18px, 3.8vw, 43px);
-
       font-weight: 700;
-
       line-height: 1;
-
       font-variant-numeric: tabular-nums;
     }
 
-
-    /* ------------------------------------------
-       HORIZONTAL FLAP DIVIDER
-    ------------------------------------------ */
-
     .cell::after {
       content: "";
-
       position: absolute;
-
       top: 50%;
       left: 0;
       right: 0;
-
       border-top: 1px solid #111713;
-
-      box-shadow: 0 1px 0 #ffffff16;
     }
 
-
-    /* ------------------------------------------
-       SPLIT-FLAP ANIMATION
-    ------------------------------------------ */
-
     .cell.changed {
-      animation: flip 0.34s ease-in-out both;
+      animation: flip .34s ease-in-out both;
     }
 
     @keyframes flip {
-
-      0% {
-        transform:
-          perspective(300px)
-          rotateX(0);
-
-        filter: brightness(1);
-      }
-
       48% {
-        transform:
-          perspective(300px)
-          rotateX(-55deg);
-
-        filter: brightness(0.65);
+        transform: perspective(300px) rotateX(-55deg);
+        filter: brightness(.65);
       }
-
-      100% {
-        transform:
-          perspective(300px)
-          rotateX(0);
-
-        filter: brightness(1);
-      }
-
     }
 
+    /* AIRLINE LOGO */
 
-    /* ------------------------------------------
-       FOOTER AND STATUS
-    ------------------------------------------ */
+    .airlineDisplay {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .airlineDisplay .cells {
+      flex: 1;
+    }
+
+    .logoFrame {
+      width: 96px;
+      height: 65px;
+      flex: 0 0 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f1;
+      border: 1px solid #555b55;
+      border-radius: 3px;
+      padding: 6px;
+      overflow: hidden;
+    }
+
+    .logoFrame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      display: none;
+    }
+
+    .logoFallback {
+      color: #303532;
+      font-weight: bold;
+      font-size: 14px;
+      letter-spacing: .08em;
+    }
 
     .footer {
       display: flex;
-
       justify-content: space-between;
       align-items: center;
-
       gap: 8px;
-
-      padding-top: clamp(11px, 2vh, 22px);
-
+      padding-top: 17px;
       border-top: 1px solid #41463f;
-
       color: #959a91;
-
-      font-size: clamp(9px, 1.05vw, 12px);
-
-      letter-spacing: 0.13em;
+      font-size: 11px;
+      letter-spacing: .13em;
     }
 
     .status {
@@ -335,218 +218,106 @@
       text-align: right;
     }
 
-
-    /* ------------------------------------------
-       MOBILE LAYOUT
-    ------------------------------------------ */
-
-    @media (max-width: 650px) {
-
-      .viewport {
-        padding: 10px;
-      }
+    @media(max-width: 650px) {
+      .viewport { padding: 10px; }
 
       .board {
         padding: 15px 11px;
         gap: 14px;
       }
 
-      .mast h1 {
-        font-size: 22px;
-      }
-
-      .eyebrow {
-        font-size: 9px;
-        letter-spacing: 0.18em;
-      }
-
-      .mastRight {
-        font-size: 9px;
-      }
+      .mast h1 { font-size: 22px; }
+      .eyebrow { font-size: 9px; }
+      .mastRight { font-size: 9px; }
 
       .dataRow {
         grid-template-columns: 1fr;
         gap: 5px;
       }
 
-      .name {
-        font-size: 9px;
-        letter-spacing: 0.2em;
-      }
-
-      .rows {
-        gap: 12px;
-      }
-
-      .cells {
-        gap: 2px;
-      }
+      .name { font-size: 9px; }
+      .rows { gap: 12px; }
+      .cells { gap: 2px; }
 
       .cell {
         height: clamp(35px, 6.4vh, 56px);
-
-        font-size: clamp(17px, 5.4vw, 30px);
-
-        border-radius: 2px;
+        font-size: clamp(15px, 4.5vw, 30px);
       }
 
-      .footer {
-        line-height: 1.4;
-        font-size: 9px;
+      .logoFrame {
+        width: 74px;
+        height: 52px;
+        flex-basis: 74px;
       }
 
+      .airlineDisplay { gap: 7px; }
+      .footer { font-size: 9px; }
     }
 
-
-    /* ------------------------------------------
-       SMALL SCREEN HEIGHTS
-    ------------------------------------------ */
-
-    @media (max-height: 630px) {
-
-      .viewport {
-        padding: 8px;
-      }
+    @media(max-height: 630px) {
+      .viewport { padding: 8px; }
 
       .board {
         gap: 8px;
         padding: 12px;
       }
 
-      .mast {
-        padding-bottom: 8px;
-      }
+      .rows { gap: 7px; }
+      .cell { height: clamp(25px, 5.7vh, 43px); }
 
-      .mast h1 {
-        font-size: 20px;
+      .logoFrame {
+        height: 43px;
       }
-
-      .rows {
-        gap: 7px;
-      }
-
-      .cell {
-        height: clamp(25px, 5.7vh, 43px);
-      }
-
-      .footer {
-        padding-top: 8px;
-      }
-
-      .name {
-        font-size: 9px;
-      }
-
     }
 
-
-    /* ------------------------------------------
-       ACCESSIBILITY
-    ------------------------------------------ */
-
-    @media (prefers-reduced-motion: reduce) {
-
-      .cell.changed {
-        animation: none;
-      }
-
+    @media(prefers-reduced-motion: reduce) {
+      .cell.changed { animation: none; }
     }
-
   </style>
-
 </head>
 
-
 <body>
-
-  <!-- MAIN DISPLAY -->
-
   <main class="viewport">
-
-    <section
-      class="board"
-      aria-label="Live aircraft information display"
-    >
-
-
-      <!-- HEADER -->
+    <section class="board" aria-label="Flugzeuganzeige">
 
       <header class="mast">
-
         <div>
-
           <div class="eyebrow">
             LIVE AIR TRAFFIC · VIENNA
           </div>
 
           <h1>
-            OVERHEAD
-            <span aria-hidden="true">↗</span>
+            OVERHEAD <span aria-hidden="true">↗</span>
           </h1>
-
         </div>
-
-
-        <!-- CONNECTION STATUS AND UTC CLOCK -->
 
         <div class="mastRight">
-
           <span class="signal"></span>
+          <span id="mode">CONNECTING</span>
 
-          <span id="mode">
-            CONNECTING
-          </span>
-
-          <div
-            id="clock"
-            style="margin-top: 10px"
-          >
+          <div style="margin-top:10px" id="clock">
             --:-- UTC
           </div>
-
         </div>
-
       </header>
 
-
-      <!-- FLIGHT INFORMATION -->
-
-      <div
-        class="rows"
-        id="rows"
-      ></div>
-
-
-      <!-- FOOTER -->
+      <div class="rows" id="rows"></div>
 
       <footer class="footer">
-
-        <div>
-  <span id="location">
-    VIENNA · 48.2082° N / 16.3738° E
-  </span>
-          
-</div>
-
-        <span
-          class="status"
-          id="status"
-          aria-live="polite"
-        >
-          STARTING…
+        <span id="location">
+          VIENNA · 48.2082° N / 16.3738° E
         </span>
 
+        <span class="status"
+              id="status"
+              aria-live="polite">
+          STARTING…
+        </span>
       </footer>
 
     </section>
-
   </main>
 
-
-  <!-- JAVASCRIPT APPLICATION -->
-
   <script src="app.js" defer></script>
-
 </body>
-
 </html>

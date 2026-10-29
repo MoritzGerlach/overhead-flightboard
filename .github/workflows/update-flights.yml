@@ -38,6 +38,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html app.js _site/
+          sed -i "s|src=\"app.js\"|src=\"app.js?v=${GITHUB_SHA}\"|" _site/index.html
           if [ -d logos ]; then
             cp -R logos _site/logos
           fi

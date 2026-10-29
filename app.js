@@ -15,7 +15,7 @@ const CONFIG = {
   // ob GitHub Actions neue Daten gespeichert hat.
   refreshSeconds: 30,
 
-  dataFile: "aircraft.json",
+  dataFile: "flights.json",
   logoFolder: "logos"
 };
 
@@ -64,6 +64,27 @@ const AIRLINES = {
   DAL: "DELTA",
   UAL: "UNITED",
   AAL: "AMERICAN"
+};
+
+const AIRLINE_LOGOS = {
+  DLH: "lufthansa.svg",
+  RYR: "ryanair.svg",
+  EZY: "easyjet.svg",
+  EJU: "easyjet.svg",
+  EZS: "easyjet.svg",
+  BAW: "britishairways.svg",
+  THY: "turkishairlines.svg",
+  KLM: "klm.svg",
+  AFR: "airfrance.svg",
+  UAE: "emirates.svg",
+  QTR: "qatarairways.svg",
+  WZZ: "wizzair.svg",
+  WMT: "wizzair.svg",
+  LOT: "lotpolishairlines.svg",
+  IBE: "iberia.svg",
+  DAL: "delta.svg",
+  UAL: "unitedairlines.svg",
+  AAL: "americanairlines.svg"
 };
 
 // ==========================================
@@ -170,33 +191,30 @@ function updateLogo(icao) {
   logoFallback.textContent =
     /^[A-Z]{3}$/.test(code) ? code : "---";
 
-  if (!/^[A-Z]{3}$/.test(code)) return;
+  const logoFile = AIRLINE_LOGOS[code];
 
-  // Local airline logo files:
-  // logos/AUA.png, logos/DLH.png, etc.
+  if (!logoFile) return;
 
-  const file =
-    `${CONFIG.logoFolder}/${code}.png`;
+  // Local airline logo files are mapped by ICAO code above.
 
-  const candidate = new Image();
+  const file = `${CONFIG.logoFolder}/${logoFile}`;
 
-  candidate.onload = () => {
+  logoImage.onload = () => {
     if (requestId !== currentLogoRequest) return;
 
-    logoImage.src = file;
     logoImage.alt = `${code} Airline Logo`;
     logoImage.style.display = "block";
     logoFallback.style.display = "none";
   };
 
-  candidate.onerror = () => {
+  logoImage.onerror = () => {
     if (requestId !== currentLogoRequest) return;
 
     logoImage.style.display = "none";
     logoFallback.style.display = "block";
   };
 
-  candidate.src = file;
+  logoImage.src = file;
 }
 
 // ==========================================

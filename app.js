@@ -14,6 +14,8 @@ const CONFIG = {
   // Display prüft alle 30 Sekunden,
   // ob GitHub Actions neue Daten gespeichert hat.
   refreshSeconds: 30,
+  maxSnapshotAgeSeconds: 1200,
+  demoMode: new URLSearchParams(window.location.search).get("demo") === "1",
 
   dataFile: "flights.json",
   logoFolder: "logos"
@@ -31,6 +33,16 @@ const FIELDS = [
   { key: "level", label: "FLIGHT LEVEL", slots: 7 },
   { key: "speed", label: "GROUND SPEED", slots: 9 }
 ];
+
+const DEMO = {
+  icao: "DLH",
+  airline: "LUFTHANSA",
+  flight: "LH123",
+  route: "FRA-VIE",
+  aircraft: "A320",
+  level: "FL350",
+  speed: "845 KM/H"
+};
 
 // ==========================================
 // AIRLINE DIRECTORY
@@ -328,10 +340,11 @@ function formatAircraft(a) {
     flight:
       callsign || "---",
 
-    // ADS-B alone does not provide
-    // verified departure/destination.
     route:
-      "---  ---",
+      typeof a.route === "string" &&
+      /^[A-Z]{3}-[A-Z]{3}$/.test(a.route.toUpperCase())
+        ? a.route.toUpperCase()
+        : "---  ---",
 
     aircraft:
       String(a.t || "---").toUpperCase(),
@@ -359,6 +372,14 @@ function setStatus(message, mode) {
   byId("mode").textContent = mode;
 }
 
+function formatUTC(date) {
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC"
+  });
+}
+
 // ==========================================
 // READ DATA FROM GITHUB ACTIONS
 // ==========================================
@@ -369,11 +390,18 @@ async function update() {
   running = true;
 
   try {
+    if (CONFIG.demoMode) {
+      render(DEMO);
+      setStatus("DEMO PREVIEW", "DEMO");
+      return;
+    }
+
     const url =
       CONFIG.dataFile + "?t=" + Date.now();
 
     const response = await fetch(url, {
-      cache: "no-store"
+      cache: "no-store",
+      signal: AbortSignal.timeout(15000)
     });
 
     if (!response.ok) {
@@ -381,6 +409,26 @@ async function update() {
     }
 
     const payload = await response.json();
+
+    const fetchedAt = typeof payload?.fetchedAt === "string"
+      ? new Date(payload.fetchedAt)
+      : null;
+
+    if (Array.isArray(payload?.ac) && !fetchedAt) {
+      throw new Error("MISSING SNAPSHOT TIMESTAMP");
+    }
+
+    if (fetchedAt) {
+      const snapshotAge = (Date.now() - fetchedAt.getTime()) / 1000;
+
+      if (
+        !Number.isFinite(snapshotAge) ||
+        snapshotAge < -60 ||
+        snapshotAge > CONFIG.maxSnapshotAgeSeconds
+      ) {
+        throw new Error("STALE SNAPSHOT");
+      }
+    }
 
     // Supports ADS-B JSON with an "ac" array
     // or a plain aircraft array.
@@ -453,7 +501,7 @@ async function update() {
       });
 
       setStatus(
-        "NO AIRCRAFT IN RANGE",
+        `NO AIRCRAFT · UPDATED ${formatUTC(fetchedAt || new Date())} UTC`,
         "LIVE"
       );
 
@@ -463,11 +511,7 @@ async function update() {
     render(formatAircraft(plane));
 
     setStatus(
-      "DATA UPDATED · " +
-      new Date().toLocaleTimeString("de-AT", {
-        hour: "2-digit",
-        minute: "2-digit"
-      }),
+      `DATA UPDATED · ${formatUTC(fetchedAt || new Date())} UTC`,
       "LIVE"
     );
 
@@ -477,7 +521,9 @@ async function update() {
     // Keep previous flight data visible,
     // but clearly mark the failure.
     setStatus(
-      "DATA UNAVAILABLE",
+      error.message === "STALE SNAPSHOT"
+        ? "DATA STALE · RETRYING"
+        : "DATA UNAVAILABLE",
       "OFFLINE"
     );
   } finally {

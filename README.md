@@ -10,7 +10,7 @@ The application is built entirely with HTML, CSS and JavaScript and can be hoste
 
 - **Live Aircraft Tracking** — Detects aircraft near a configurable location.
 - **Vintage Split-Flap Display** — Animated characters inspired by classic airport departure boards.
-- **Automatic Updates** — Refreshes aircraft data every 5 minutes.
+- **Automatic Updates** — GitHub Actions refreshes aircraft data every 5 minutes; the display checks for a new snapshot every 30 seconds.
 - **Responsive Design** — Optimized for desktop, laptop and smartphone screens.
 - **Minimalist Interface** — No buttons, menus or user input.
 - **Flight Information** — Displays airline, flight number, aircraft type, altitude and ground speed.
@@ -59,8 +59,10 @@ const CONFIG = {
   latitude: 48.2082,
   longitude: 16.3738,
   radiusNauticalMiles: 15,
-  refreshMinutes: 5,
-  demoMode: false
+  refreshSeconds: 30,
+  maxSnapshotAgeSeconds: 1200,
+  dataFile: "flights.json",
+  logoFolder: "logos"
 };
 ```
 
@@ -68,7 +70,7 @@ To monitor aircraft above another location, simply replace the coordinates.
 
 ## Aircraft Data
 
-The application is designed to retrieve live aircraft position data from the Airplanes.live API.
+GitHub Actions retrieves nearby aircraft from ADSB.fi every 5 minutes and writes a `flights.json` snapshot. The browser reads that published snapshot; it does not call the aircraft API directly.
 
 Depending on data availability, the API may provide:
 
@@ -81,13 +83,13 @@ Depending on data availability, the API may provide:
 
 Some information, particularly departure and destination airports, requires additional data sources.
 
-**Important:** Direct API requests from GitHub Pages depend on the API provider's CORS policy, availability and usage limits.
-
-If browser requests are blocked, a lightweight API proxy may be required.
+The workflow also looks up the nearest aircraft's route through ADSBdb when route information is available. The display shows the route when both airport codes are valid IATA codes.
 
 ## Automatic Updates
 
-The application checks for nearby aircraft every 5 minutes while the webpage is open.
+GitHub Actions collects a new snapshot every 5 minutes. While open, the webpage checks for a newer snapshot every 30 seconds.
+
+The display marks data as stale if its snapshot is over 20 minutes old. To preview the layout without live aircraft data, open the page with `?demo=1`, for example `https://moritzgerlach.github.io/overhead-flightboard/?demo=1`.
 
 When new aircraft data becomes available, the display automatically updates.
 
@@ -163,39 +165,11 @@ Both layouts feature:
 
 OVERHEAD can be hosted for free using GitHub Pages.
 
-### 1. Create a Repository
+### GitHub Pages
 
-Create a new GitHub repository named:
+This repository already deploys through `.github/workflows/update-flights.yml`. In repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Each push to `main` and each scheduled workflow run publishes the display and its latest aircraft snapshot.
 
-`overhead-flightboard`
-
-### 2. Upload the Files
-
-Upload the following files into the repository's root directory:
-
-```text
-overhead-flightboard/
-│
-├── index.html
-├── app.js
-└── README.md
-```
-
-### 3. Enable GitHub Pages
-
-Navigate to:
-
-`Settings → Pages`
-
-Under **Build and deployment**, select:
-
-- Source: `Deploy from a branch`
-- Branch: `main`
-- Folder: `/ (root)`
-
-Click **Save**.
-
-### 4. Open the Website
+### Open the Website
 
 Once GitHub Pages has published the project, the application should be available at:
 
@@ -205,7 +179,7 @@ The website will automatically load the flightboard and attempt to retrieve airc
 
 ## Technical Architecture
 
-OVERHEAD is designed to operate without a dedicated backend server.
+The browser displays static files hosted by GitHub Pages. GitHub Actions runs the scheduled data collection and publishes the resulting snapshot; no always-on server is required.
 
 ```text
 AIRCRAFT
@@ -214,45 +188,36 @@ AIRCRAFT
 ADS-B DATA NETWORK
     |
     v
-AIRPLANES.LIVE API
+ADSB.fi API
     |
     v
-JAVASCRIPT (app.js)
+GITHUB ACTIONS
     |
     v
-LOCATION FILTER
+ADSBdb ROUTE LOOKUP
     |
     v
-FLIGHT DATA PROCESSING
+flights.json SNAPSHOT
     |
     v
-SPLIT-FLAP DISPLAY
+GITHUB PAGES
     |
     v
-HTML / CSS
+JAVASCRIPT DISPLAY
     |
     v
 WEB BROWSER
 ```
 
-The JavaScript application handles:
+GitHub Actions retrieves and packages aircraft data. In the browser, `app.js` reads the snapshot, selects the nearest aircraft in range, formats its information and updates the display.
 
-1. Aircraft data retrieval.
-2. Geographic filtering.
-3. Aircraft selection.
-4. Data processing.
-5. Display updates.
-6. Split-flap animations.
-
-All processing takes place in the user's browser.
-
-GitHub Pages hosts the static website but does not execute server-side JavaScript or Python.
+The Raspberry Pi only needs to open the published page in a browser; data collection continues in GitHub Actions.
 
 ## Future Hardware Integration
 
 The project is designed to support a future standalone aircraft display.
 
-Potential hardware:
+Possible display hardware:
 
 - Raspberry Pi Zero 2 W
 - Raspberry Pi 4 or 5
@@ -260,7 +225,7 @@ Potential hardware:
 - Small LCD display
 - Dedicated digital picture frame
 
-A Raspberry Pi could run the application locally and display it in fullscreen mode.
+A Raspberry Pi can open the published page in a fullscreen browser. Before the device arrives, the page can be checked on a desktop at the target screen size and left running to observe refresh and recovery behavior.
 
 For E-Paper hardware, an additional rendering component may be required.
 
@@ -271,14 +236,15 @@ For E-Paper hardware, an additional rendering component may be required.
 | Frontend | HTML5 |
 | Styling | CSS3 |
 | Logic | JavaScript |
-| Aircraft Data | Airplanes.live API |
+| Aircraft Data | ADSB.fi via GitHub Actions |
+| Route Lookup | ADSBdb via GitHub Actions |
 | Hosting | GitHub Pages |
 | Configuration | JavaScript |
-| Backend | Not required for initial version |
+| Data Collection | GitHub Actions |
 
 ## Project Status
 
-**Current Stage:** Initial development and live API testing.
+**Current Stage:** Preparing the display and data workflow before Raspberry Pi setup.
 
 ### Implemented
 
@@ -289,15 +255,13 @@ For E-Paper hardware, an additional rendering component may be required.
 - Aircraft selection logic
 - Empty-airspace display
 - Offline display
+- Scheduled snapshot publishing
+- Local airline icons with text fallback
 
 ### Planned Improvements
 
-- Reliable departure and destination airport identification
-- Expanded airline identification
-- Aircraft model database
-- Airline logo integration
-- Improved aircraft selection logic
-- Additional data sources
+- Additional airline icons, including Austrian Airlines
+- Confirm route and offline behavior across real snapshots
 - Raspberry Pi integration
 - E-Paper display support
 

@@ -2,7 +2,7 @@ import CoreLocation
 import Foundation
 
 @MainActor
-final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+final class LocationManager: NSObject, ObservableObject, @preconcurrency CLLocationManagerDelegate {
     @Published private(set) var location: CLLocation?
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     private let manager = CLLocationManager()
